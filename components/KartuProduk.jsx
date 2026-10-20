@@ -18,7 +18,7 @@ export default function KartuProduk({ produk }) {
   return (
     <Link
       href={`/produk/${produk.id}`}
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-garis bg-latar transition hover:border-utama/50 hover:shadow-sm"
+      className="group relative flex flex-col overflow-hidden rounded-2xl border border-garis bg-latar transition hover:border-utama/50 hover:shadow-xs"
     >
       <div className="relative aspect-square w-full overflow-hidden bg-permukaan">
         <img
@@ -31,14 +31,14 @@ export default function KartuProduk({ produk }) {
 
         {/* Badge Diskon / Promo (US-20) */}
         {adaDiskon && (
-          <span className="absolute left-2.5 top-2.5 rounded-md bg-red-600 px-2 py-0.5 text-xs font-bold text-white shadow">
+          <span className="absolute left-2 top-2 sm:left-2.5 sm:top-2.5 rounded-md bg-red-600 px-1.5 py-0.5 text-[10px] sm:text-xs font-bold text-white shadow-xs">
             Hemat {diskonPersen}%
           </span>
         )}
 
         {/* Badge Status Stok (US-19) */}
         <span
-          className={`absolute right-2.5 top-2.5 rounded-md px-2 py-0.5 text-xs font-semibold backdrop-blur-sm ${
+          className={`absolute right-2 top-2 sm:right-2.5 sm:top-2.5 rounded-md px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold backdrop-blur-sm ${
             isHabis
               ? "bg-red-600/90 text-white"
               : "bg-emerald-600/85 text-white"
@@ -48,27 +48,32 @@ export default function KartuProduk({ produk }) {
         </span>
 
         {/* Tombol Bandingkan (US-37) & Tombol Favorit (US-24) */}
-        <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
-          <TombolBandingkan produk={produk} ikonOnly />
-          <TombolFavorit produk={produk} />
+        <div className="absolute bottom-2 right-2 flex items-center gap-1 sm:bottom-2.5 sm:right-2.5 sm:gap-1.5">
+          <TombolBandingkan produk={produk} ikonOnly className="!h-7.5 !w-7.5 sm:!h-8.5 sm:!w-8.5 !shadow-xs" />
+          <TombolFavorit produk={produk} className="!h-7.5 !w-7.5 sm:!h-8.5 sm:!w-8.5 !shadow-xs" />
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-3.5">
-        <p className="text-xs text-teks-lembut">{produk.kategori}</p>
-        <h3 className="font-semibold leading-snug group-hover:text-utama">{produk.nama}</h3>
-        <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-          <div className="flex flex-wrap items-baseline gap-1.5">
-            <p className="rounded-md bg-harga-latar px-2 py-0.5 text-sm font-bold text-harga">
+      <div className="flex flex-1 flex-col justify-between p-3 sm:p-3.5 gap-2">
+        <div>
+          <p className="text-[11px] sm:text-xs font-medium text-teks-lembut truncate">{produk.kategori}</p>
+          <h3 className="font-bold text-xs sm:text-sm leading-snug group-hover:text-utama line-clamp-2 mt-0.5">
+            {produk.nama}
+          </h3>
+        </div>
+
+        <div className="mt-auto flex items-center justify-between gap-1.5 pt-1">
+          <div className="min-w-0 flex-1">
+            <span className="block truncate text-xs sm:text-sm font-extrabold text-harga">
               {formatRupiah(produk.harga)}
-            </p>
+            </span>
             {adaDiskon && (
-              <span className="text-xs text-teks-lembut line-through">
+              <span className="block truncate text-[10px] text-teks-lembut line-through">
                 {formatRupiah(produk.harga_coret)}
               </span>
             )}
           </div>
-          <TombolKeranjang produk={produk} className="py-1 px-2.5 text-xs" teks="+ Keranjang" />
+          <TombolKeranjang produk={produk} className="h-8 px-2 sm:px-3 text-xs" />
         </div>
       </div>
     </Link>
