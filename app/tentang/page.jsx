@@ -40,9 +40,37 @@ export default function HalamanTentang() {
         <h1 className="text-3xl font-extrabold tracking-tight text-teks sm:text-4xl">
           Tentang {toko.nama}
         </h1>
-        <p className="mt-3 text-lg leading-relaxed text-teks-lembut">
+        <p className="mt-3 text-lg font-medium leading-relaxed text-utama">
           {toko.tagline}
         </p>
+        <p className="mt-3 text-sm leading-relaxed text-teks-lembut">
+          {toko.deskripsi} Berakar dari kecintaan mendalam pada kekayaan cita rasa kopi Indonesia, kami berkomitmen menyajikan seduhan terbaik mulai dari espresso pekat yang seimbang, signature kopi susu aren legit, hingga seduhan manual brew aromatik. Setiap tegukan disempurnakan dengan pilihan pastry hangat yang dipanggang setiap hari.
+        </p>
+
+        {/* Nilai Utama Toko */}
+        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+          <div className="rounded-xl border border-garis bg-latar p-4">
+            <span className="text-xs font-bold uppercase tracking-wider text-utama">Biji Pilihan</span>
+            <h3 className="mt-1 font-bold text-sm text-teks">100% Kopi Nusantara</h3>
+            <p className="mt-1 text-xs text-teks-lembut leading-relaxed">
+              Dipetik langsung dari petani lokal terbaik di Aceh Gayo, Kintamani, hingga Flores.
+            </p>
+          </div>
+          <div className="rounded-xl border border-garis bg-latar p-4">
+            <span className="text-xs font-bold uppercase tracking-wider text-utama">Seduhan Presisi</span>
+            <h3 className="mt-1 font-bold text-sm text-teks">Standar Barista Artisan</h3>
+            <p className="mt-1 text-xs text-teks-lembut leading-relaxed">
+              Dikalibrasi setiap pagi untuk menjamin konsistensi aroma, rasa, dan kelembutan krema.
+            </p>
+          </div>
+          <div className="rounded-xl border border-garis bg-latar p-4">
+            <span className="text-xs font-bold uppercase tracking-wider text-utama">Pairing Sempurna</span>
+            <h3 className="mt-1 font-bold text-sm text-teks">Freshly Baked Pastry</h3>
+            <p className="mt-1 text-xs text-teks-lembut leading-relaxed">
+              Kudapan renyah dan gurih dipanggang hangat untuk menemani momen santai atau kerja Anda.
+            </p>
+          </div>
+        </div>
 
         <div className="mt-8 grid gap-6 sm:grid-cols-2">
           {/* Jam Operasional */}
