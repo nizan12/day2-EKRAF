@@ -11,11 +11,11 @@ export async function POST(request) {
       return NextResponse.json({ error: "Pesan tidak boleh kosong." }, { status: 400 });
     }
 
-    // Ambil daftar produk terkini dari Supabase
+    // Ambil daftar produk terkini dari Supabase (lengkap dengan foto untuk kartu produk)
     const supabase = buatClientServer();
     const { data: rawProduk } = await supabase
       .from("produk")
-      .select("id, nama, harga, kategori, deskripsi")
+      .select("id, nama, harga, kategori, deskripsi, foto_url, image")
       .order("created_at", { ascending: false });
 
     const config = await ambilPengaturanAdmin();
@@ -25,7 +25,7 @@ export async function POST(request) {
     const ringkasanMenu = produkAktif
       .map(
         (p) =>
-          `- ${p.nama} (${p.kategori || "Umum"}): Rp ${Number(p.harga).toLocaleString("id-ID")}. ${p.deskripsi || ""}`
+          `- ID #${p.id}: ${p.nama} (${p.kategori || "Umum"}) - Rp ${Number(p.harga).toLocaleString("id-ID")}. ${p.deskripsi || ""}`
       )
       .join("\n");
 
@@ -33,14 +33,16 @@ export async function POST(request) {
 
     if (!apiKey) {
       // Fallback ramah jika API key belum diisi
+      const saranAwal = produkAktif.slice(0, 2);
       return NextResponse.json({
         jawaban: `Halo! Selamat datang di ${toko.nama}. Kami memiliki aneka pilihan kopi dan minuman segar seperti ${
           produkAktif.slice(0, 3).map((p) => p.nama).join(", ")
-        }. Kamu bisa memesan langsung ke WhatsApp kami di nomor ${toko.nomorWhatsApp}. Ada rasa kopi favorit yang sedang kamu inginkan?`,
+        }. Kamu bisa memesan langsung ke WhatsApp kami di nomor ${toko.nomorWhatsApp}. Ada rasa kopi atau camilan favorit yang sedang kamu cari?`,
+        produkRekomendasi: saranAwal,
       });
     }
 
-    const systemPrompt = `Kamu adalah Barista Virtual ramah dan ahli kopi dari kedai "${toko.nama}".
+    const systemPrompt = `Kamu adalah Barista Virtual ramah dan ahli pairing kopi serta makanan dari kedai "${toko.nama}".
 Identitas Toko:
 - Nama: ${toko.nama}
 - Jam Buka: ${toko.jamBuka}
@@ -51,11 +53,14 @@ Daftar Menu Tersedia Saat Ini:
 ${ringkasanMenu}
 
 Aturan Menjawab:
-1. Bantu pengunjung memilih menu yang cocok dengan selera atau suasana hati mereka berdasarkan daftar menu di atas.
-2. Jawab dalam bahasa Indonesia yang ramah, santun, dan ringkas (maksimal 2-3 paragraf).
-3. JANGAN PERNAH MENGGUNAKAN EMOJI APAPUN dalam jawabanmu. Gunakan bahasa teks murni yang hangat dan bersahabat.
-4. Jika ditanya menu yang tidak ada di daftar, jelaskan dengan sopan dan rekomendasikan menu alternatif yang tersedia di daftar toko kami.
-5. Beritahu pengunjung bahwa mereka bisa langsung memesan atau memasukkan menu ke keranjang di website ini.`;
+1. Bantu pengunjung memilih menu yang cocok dengan selera, waktu, atau suasana hati mereka berdasarkan daftar menu di atas.
+2. Jika pengunjung menanyakan makanan atau camilan yang cocok dipasangkan (food pairing) dengan minuman tertentu, rekomendasikan menu makanan/pastry yang tersedia di daftar toko kami (seperti Butter Croissant Panggang) dan jelaskan secara singkat mengapa kombinasi rasa tersebut sangat serasi.
+3. Jawab dalam bahasa Indonesia yang ramah, santun, dan ringkas (maksimal 2 paragraf).
+4. JANGAN PERNAH MENGGUNAKAN EMOJI APAPUN dalam jawabanmu. Gunakan bahasa teks murni yang hangat dan bersahabat.
+5. Jika ditanya menu yang tidak ada di daftar, jelaskan dengan sopan dan tawarkan menu alternatif yang ada di toko kami.
+6. Pada baris TERAKHIR jawabanmu, jika ada produk spesifik dari daftar menu di atas yang kamu sarankan, cantumkan ID produknya dalam format persis seperti ini:
+[REKOMENDASI: id1, id2]
+Contoh: [REKOMENDASI: 3, 6]`;
 
     // Format riwayat chat untuk Gemini API:
     // Pastikan percakapan dimulai dari role "user" (abaikan sapaan bot di awal)
@@ -99,12 +104,15 @@ Aturan Menjawab:
       });
     }
 
-    // Daftar model Gemini aktif & terverifikasi
-    const models = ["gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash"];
+    // Daftar model Gemini aktif & terverifikasi cepat
+    const models = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-flash-latest"];
     let jawaban = "";
 
     for (const model of models) {
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
           {
@@ -116,8 +124,11 @@ Aturan Menjawab:
               },
               contents,
             }),
+            signal: controller.signal,
           }
         );
+
+        clearTimeout(timeout);
 
         if (!res.ok) {
           const errDetail = await res.json().catch(() => ({}));
@@ -139,13 +150,48 @@ Aturan Menjawab:
       }
     }
 
-    if (!jawaban) {
-      jawaban = `Untuk pilihan kopi terbaik hari ini, kami merekomendasikan menu andalan kami: ${
-        produkAktif[0]?.nama || "Kopi Susu Aren"
-      }. Kamu juga dapat langsung mengecek katalog lengkap di halaman beranda!`;
+    // Ekstrak rekomendasi produk dari tag [REKOMENDASI: ...]
+    let produkRekomendasi = [];
+    const tagRegex = /\[REKOMENDASI:\s*([0-9,\s]+)\]/i;
+    const match = jawaban.match(tagRegex);
+
+    if (match) {
+      const ids = match[1]
+        .split(",")
+        .map((s) => Number(s.trim()))
+        .filter((n) => !isNaN(n));
+
+      produkRekomendasi = ids
+        .map((id) => produkAktif.find((p) => p.id === id))
+        .filter(Boolean);
+
+      // Bersihkan tag dari teks tampilan jawaban
+      jawaban = jawaban.replace(tagRegex, "").trim();
     }
 
-    return NextResponse.json({ jawaban });
+    // Fallback pencocokan jika AI menyebutkan produk dalam teks tapi tidak membuat tag
+    if (produkRekomendasi.length === 0 && jawaban) {
+      for (const p of produkAktif) {
+        if (jawaban.toLowerCase().includes(p.nama.toLowerCase())) {
+          produkRekomendasi.push(p);
+        }
+      }
+      produkRekomendasi = produkRekomendasi.slice(0, 2);
+    }
+
+    if (!jawaban) {
+      // Fallback jika semua pemanggilan model gagal/timeout
+      const menuKopi = produkAktif.find((p) => p.kategori?.toLowerCase().includes("espresso") || p.kategori?.toLowerCase().includes("signature")) || produkAktif[0];
+      const menuPastry = produkAktif.find((p) => p.kategori?.toLowerCase().includes("camilan") || p.kategori?.toLowerCase().includes("pastry"));
+
+      jawaban = `Untuk pilihan kopi terbaik hari ini, kami merekomendasikan ${menuKopi?.nama || "Es Kopi Susu Aren Narun"}. Sangat cocok dinikmati bersama ${menuPastry?.nama || "camilan pastry"} kami yang renyah dan gurih!`;
+      produkRekomendasi = [menuKopi, menuPastry].filter(Boolean);
+    }
+
+    return NextResponse.json({
+      jawaban,
+      produkRekomendasi,
+    });
   } catch (err) {
     console.error("Gagal memproses pesan AI:", err);
     return NextResponse.json(
@@ -154,4 +200,3 @@ Aturan Menjawab:
     );
   }
 }
-
