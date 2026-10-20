@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+/*
+  Token desain. Ganti nilai di sini untuk menyesuaikan dengan usahamu.
+  Penjelasan setiap token ada di DESIGN.md.
+*/
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --color-latar: #ffffff;
+  --color-permukaan: #f1f5f2;
+  --color-garis: #dde5e0;
+  --color-teks: #1b2420;
+  --color-teks-lembut: #5b6a62;
+
+  --color-utama: #1f6b4f;
+  --color-utama-gelap: #154d39;
+
+  --color-harga: #7a4e09;
+  --color-harga-latar: #fbefd8;
+
+  --color-bahaya: #b42318;
+}
+
+html {
+  color: var(--color-teks);
+  background: var(--color-latar);
+}
+
+html.dark {
+  --color-latar: #121614;
+  --color-permukaan: #1a221e;
+  --color-garis: #2c3933;
+  --color-teks: #ecf3ee;
+  --color-teks-lembut: #9ab0a4;
+
+  --color-utama: #2ca077;
+  --color-utama-gelap: #238361;
+
+  --color-harga: #f3be6c;
+  --color-harga-latar: #2e2415;
+
+  --color-bahaya: #f04438;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-utama);
+  outline-offset: 2px;
+}
