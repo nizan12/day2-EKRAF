@@ -85,17 +85,32 @@ function RenderSlideIcon({ type }) {
   );
 }
 
-export default function BannerPromo() {
+export default function BannerPromo({ slides }) {
+  const activeSlides = (Array.isArray(slides) && slides.length > 0)
+    ? slides.map((s) => ({
+        id: s.id,
+        badge: s.badge || "PROMO SPESIAL",
+        judul: s.judul,
+        deskripsi: s.deskripsi || s.subjudul || "",
+        tombolTeks: s.tombol_teks || s.tombolTeks || "Pesan via WhatsApp",
+        link: s.link_url || s.link || "/",
+        isExternal: s.is_external ?? s.isExternal ?? false,
+        bgGradient: s.bg_gradient || s.bgGradient || "from-emerald-950 via-utama-gelap to-utama",
+        type: s.tipe || s.type || "coffee",
+      }))
+    : PROMO_SLIDES;
+
   const [indeks, setIndeks] = useState(0);
 
   useEffect(() => {
+    if (activeSlides.length <= 1) return;
     const timer = setInterval(() => {
-      setIndeks((prev) => (prev + 1) % PROMO_SLIDES.length);
+      setIndeks((prev) => (prev + 1) % activeSlides.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [activeSlides.length]);
 
-  const slide = PROMO_SLIDES[indeks];
+  const slide = activeSlides[indeks] || activeSlides[0];
 
   return (
     <div className="relative mb-8 overflow-hidden rounded-3xl border border-garis shadow-sm">

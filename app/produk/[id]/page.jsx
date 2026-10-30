@@ -8,7 +8,7 @@ import TerakhirDilihat from "@/components/TerakhirDilihat";
 import GaleriFoto from "@/components/GaleriFoto";
 import KartuProduk from "@/components/KartuProduk";
 import BagianUlasan from "@/components/BagianUlasan";
-import { buatClientServer } from "@/lib/supabase";
+import { buatClientServer, normalisasiProduk, normalisasiDaftarProduk } from "@/lib/supabase";
 import { formatRupiah } from "@/lib/format";
 import { toko } from "@/lib/toko";
 import { ambilUlasanProduk } from "@/lib/pengaturanAdmin";
@@ -19,11 +19,13 @@ export const revalidate = 0;
 export async function generateMetadata({ params }) {
   const { id } = await params;
   const supabase = buatClientServer();
-  const { data: produk } = await supabase
+  const { data: rawProduk } = await supabase
     .from("produk")
-    .select("nama, deskripsi, foto_url, image, harga, kategori")
+    .select("*, kategori_rel:kategori_id(id, nama, slug)")
     .eq("id", id)
     .single();
+
+  const produk = normalisasiProduk(rawProduk);
 
   if (!produk) {
     return {
@@ -59,11 +61,13 @@ export default async function HalamanDetailProduk({ params }) {
   const { id } = await params;
   const supabase = buatClientServer();
 
-  const { data: produk, error } = await supabase
+  const { data: rawProduk, error } = await supabase
     .from("produk")
-    .select("*")
+    .select("*, kategori_rel:kategori_id(id, nama, slug)")
     .eq("id", id)
     .single();
+
+  const produk = normalisasiProduk(rawProduk);
 
   if (error || !produk) {
     notFound();
@@ -72,15 +76,27 @@ export default async function HalamanDetailProduk({ params }) {
   // Mengambil ulasan yang sudah disetujui (US-38)
   const ulasanList = await ambilUlasanProduk(id);
 
-  // Mengambil produk terkait dengan kategori yang sama (US-17)
-  const { data: produkTerkaitData } = await supabase
-    .from("produk")
-    .select("*")
-    .eq("kategori", produk.kategori)
-    .neq("id", id)
-    .limit(3);
+  // Mengambil varian produk dari tabel `varian` (US-12 & US-48)
+  let varianList = [];
+  try {
+    const { data: dbVarian } = await supabase
+      .from("varian")
+      .select("*")
+      .eq("produk_id", id)
+      .order("id", { ascending: true });
+    if (dbVarian && dbVarian.length > 0) {
+      varianList = dbVarian;
+    }
+  } catch {}
 
-  const produkTerkait = produkTerkaitData ?? [];
+  // Mengambil produk terkait dengan kategori yang sama (US-17)
+  const relasiQuery = produk.kategori_id
+    ? supabase.from("produk").select("*, kategori_rel:kategori_id(id, nama, slug)").eq("kategori_id", produk.kategori_id)
+    : supabase.from("produk").select("*, kategori_rel:kategori_id(id, nama, slug)");
+
+  const { data: produkTerkaitData } = await relasiQuery.neq("id", id).limit(3);
+
+  const produkTerkait = normalisasiDaftarProduk(produkTerkaitData ?? []);
   const isHabis =
     produk.stok === 0 ||
     produk.status_stok === "habis" ||
@@ -108,13 +124,18 @@ export default async function HalamanDetailProduk({ params }) {
             <div className="flex items-center gap-2.5">
               <p className="text-sm font-semibold text-teks-lembut">{produk.kategori}</p>
               <span
-                className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-bold ${
                   isHabis
-                    ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
-                    : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
+                    ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
+                    : "border-utama/30 bg-utama/10 text-utama"
                 }`}
               >
-                {isHabis ? "Stok Habis" : "Tersedia"}
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    isHabis ? "bg-red-500" : "bg-utama shadow-xs"
+                  }`}
+                />
+                <span>{isHabis ? "Stok Habis" : "Tersedia"}</span>
               </span>
             </div>
 
@@ -144,7 +165,7 @@ export default async function HalamanDetailProduk({ params }) {
           </div>
           <p className="max-w-prose leading-relaxed text-teks-lembut">{produk.deskripsi}</p>
           <div className="flex flex-col gap-3 pt-2">
-            <TombolWhatsApp produk={produk} />
+            <TombolWhatsApp produk={produk} varianList={varianList} />
           </div>
         </div>
       </article>

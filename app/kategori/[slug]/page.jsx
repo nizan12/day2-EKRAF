@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import KartuProduk from "@/components/KartuProduk";
-import { buatClientServer } from "@/lib/supabase";
+import { buatClientServer, normalisasiDaftarProduk } from "@/lib/supabase";
 import { ambilPengaturanAdmin } from "@/lib/pengaturanAdmin";
 import { toko } from "@/lib/toko";
 
@@ -31,23 +31,26 @@ export default async function HalamanKategori({ params }) {
   const supabase = buatClientServer();
   const { data: rawProduk, error } = await supabase
     .from("produk")
-    .select("*")
+    .select("*, kategori_rel:kategori_id(id, nama, slug)")
     .order("created_at", { ascending: false });
 
   if (error || !rawProduk) {
     notFound();
   }
 
+  const daftarProduk = normalisasiDaftarProduk(rawProduk);
+
   const pengaturan = await ambilPengaturanAdmin();
   const nonaktifIds = pengaturan.nonaktifIds || [];
 
   // Filter produk aktif yang cocok dengan slug kategori
-  const terfilter = rawProduk.filter((p) => {
+  const terfilter = daftarProduk.filter((p) => {
     if (nonaktifIds.includes(p.id)) return false;
     const kat = p.kategori || "";
     return (
       slugify(kat) === slugify(decodedSlug) ||
-      kat.toLowerCase() === decodedSlug.toLowerCase()
+      kat.toLowerCase() === decodedSlug.toLowerCase() ||
+      p.kategori_slug === decodedSlug
     );
   });
 

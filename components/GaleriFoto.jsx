@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function GaleriFoto({ fotoUtama, fotoList = [], nama = "Produk" }) {
   // Kumpulkan semua foto unik yang valid
@@ -22,6 +22,18 @@ export default function GaleriFoto({ fotoUtama, fotoList = [], nama = "Produk" }
 
   const [indeksAktif, setIndeksAktif] = useState(0);
   const [modalBuka, setModalBuka] = useState(false);
+
+  // Kunci scroll halaman belakang saat modal zoom foto terbuka
+  useEffect(() => {
+    if (modalBuka) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [modalBuka]);
 
   const fotoAktif = fotoTersedia[indeksAktif] || fotoUtama || "/images/placeholder.svg";
 

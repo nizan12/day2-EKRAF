@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import {
   ambilProdukBandingkan,
@@ -14,6 +14,11 @@ import { tambahKeKeranjang } from "@/lib/keranjang";
 export default function ModalBandingkan() {
   const [items, setItems] = useState([]);
   const [modalBuka, setModalBuka] = useState(false);
+  const [modalPilihBuka, setModalPilihBuka] = useState(false);
+  const [daftarProduk, setDaftarProduk] = useState([]);
+  const [loadingProduk, setLoadingProduk] = useState(false);
+  const [cariTeks, setCariTeks] = useState("");
+  const [kategoriFilter, setKategoriFilter] = useState("Semua");
 
   useEffect(() => {
     setItems(ambilProdukBandingkan());
@@ -29,6 +34,72 @@ export default function ModalBandingkan() {
       window.removeEventListener("storage", handleUpdate);
     };
   }, []);
+
+  // Mencegah scroll pada konten di belakang saat modal popup terbuka
+  useEffect(() => {
+    if (modalBuka || modalPilihBuka) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [modalBuka, modalPilihBuka]);
+
+  async function bukaModalPilih() {
+    setModalPilihBuka(true);
+    if (daftarProduk.length === 0) {
+      setLoadingProduk(true);
+      try {
+        const res = await fetch("/api/produk");
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json.produk)) {
+            setDaftarProduk(json.produk);
+          }
+        }
+      } catch (err) {
+        console.error("Gagal mengambil daftar produk:", err);
+      } finally {
+        setLoadingProduk(false);
+      }
+    }
+  }
+
+  function pilihProdukKedua(p) {
+    toggleBandingkan(p);
+    setModalPilihBuka(false);
+    // Buka langsung modal perbandingan agar pengguna langsung melihat hasilnya
+    setTimeout(() => {
+      setModalBuka(true);
+    }, 150);
+  }
+
+  // Ambil daftar kategori unik dari produk
+  const daftarKategori = useMemo(() => {
+    const setKat = new Set();
+    daftarProduk.forEach((p) => {
+      if (p.kategori) setKat.add(p.kategori);
+    });
+    return ["Semua", ...Array.from(setKat)];
+  }, [daftarProduk]);
+
+  // Filter produk yang belum dipilih dan cocok dengan pencarian / kategori
+  const produkTersedia = useMemo(() => {
+    const idTerpilih = new Set(items.map((it) => it.id));
+    return daftarProduk.filter((p) => {
+      if (idTerpilih.has(p.id)) return false;
+      if (kategoriFilter !== "Semua" && p.kategori !== kategoriFilter) return false;
+      if (cariTeks.trim()) {
+        const q = cariTeks.toLowerCase();
+        const namaCocok = p.nama?.toLowerCase().includes(q);
+        const katCocok = p.kategori?.toLowerCase().includes(q);
+        return namaCocok || katCocok;
+      }
+      return true;
+    });
+  }, [daftarProduk, items, kategoriFilter, cariTeks]);
 
   if (items.length === 0) return null;
 
@@ -60,10 +131,20 @@ export default function ModalBandingkan() {
             </div>
           ))}
 
+          {/* Slot Kosong +1 yang Dapat Diklik untuk Memilih Menu Kedua */}
           {items.length === 1 && (
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-dashed border-garis text-[11px] font-semibold text-teks-lembut">
-              +1
-            </div>
+            <button
+              type="button"
+              onClick={bukaModalPilih}
+              className="group relative flex h-10 w-10 items-center justify-center rounded-xl border-2 border-dashed border-utama/60 bg-utama/5 text-xs font-bold text-utama hover:border-utama hover:bg-utama/20 transition cursor-pointer shadow-xs active:scale-95"
+              title="Klik untuk memilih menu lain yang ingin dibandingkan"
+            >
+              <span className="group-hover:scale-110 transition-transform">+1</span>
+              {/* Tooltip Petunjuk */}
+              <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-teks px-2 py-0.5 text-[10px] font-medium text-latar opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+                Pilih Produk
+              </span>
+            </button>
           )}
         </div>
 
@@ -92,6 +173,161 @@ export default function ModalBandingkan() {
           </button>
         </div>
       </div>
+
+      {/* Modal Popup: Pilih Produk Kedua untuk Dibandingkan */}
+      {modalPilihBuka && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setModalPilihBuka(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs animate-in fade-in"
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-xl flex-col rounded-3xl border border-garis bg-latar shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Dialog */}
+            <div className="flex items-center justify-between border-b border-garis px-5 py-4">
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-teks">
+                  Pilih Produk Kedua
+                </h2>
+                <p className="text-xs text-teks-lembut mt-0.5">
+                  Bandingkan langsung dengan <strong className="text-teks">{item1?.nama}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalPilihBuka(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-teks-lembut hover:bg-permukaan hover:text-teks transition"
+                aria-label="Tutup"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="h-4 w-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Kotak Pencarian & Filter Kategori */}
+            <div className="border-b border-garis p-4 space-y-3 bg-permukaan/40">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={cariTeks}
+                  onChange={(e) => setCariTeks(e.target.value)}
+                  placeholder="Ketik nama kopi / minuman yang ingin dibandingkan..."
+                  className="w-full rounded-xl border border-garis bg-latar px-3.5 py-2 pl-9 text-xs sm:text-sm text-teks placeholder-teks-lembut outline-none focus:border-utama focus:ring-1 focus:ring-utama transition"
+                />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth="2"
+                  stroke="currentColor"
+                  className="absolute left-3 top-2.5 h-4 w-4 text-teks-lembut"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+                {cariTeks && (
+                  <button
+                    type="button"
+                    onClick={() => setCariTeks("")}
+                    className="absolute right-3 top-2.5 text-xs text-teks-lembut hover:text-teks"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Chips Kategori */}
+              {daftarKategori.length > 1 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+                  {daftarKategori.map((kat) => (
+                    <button
+                      key={kat}
+                      type="button"
+                      onClick={() => setKategoriFilter(kat)}
+                      className={`shrink-0 rounded-lg px-2.5 py-1 font-medium transition ${
+                        kategoriFilter === kat
+                          ? "bg-utama text-white shadow-xs"
+                          : "border border-garis bg-latar text-teks-lembut hover:border-utama hover:text-teks"
+                      }`}
+                    >
+                      {kat}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Daftar Produk Pilihan */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {loadingProduk ? (
+                <div className="flex flex-col items-center justify-center py-12 text-teks-lembut text-xs">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-utama border-t-transparent mb-2" />
+                  Memuat daftar produk...
+                </div>
+              ) : produkTersedia.length === 0 ? (
+                <div className="py-12 text-center text-xs text-teks-lembut">
+                  Tidak ada produk lain yang cocok dengan pencarian.
+                </div>
+              ) : (
+                produkTersedia.map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => pilihProdukKedua(p)}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-garis bg-latar p-2.5 sm:p-3 hover:border-utama hover:bg-permukaan transition cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img
+                        src={ambilFotoUtama(p)}
+                        alt={p.nama}
+                        onError={(e) => {
+                          e.currentTarget.src = "/images/placeholder.svg";
+                        }}
+                        className="h-12 w-12 shrink-0 rounded-xl object-cover border border-garis group-hover:scale-105 transition"
+                      />
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-semibold text-teks-lembut">
+                          {p.kategori || "Umum"}
+                        </span>
+                        <h4 className="text-xs sm:text-sm font-bold text-teks truncate group-hover:text-utama transition">
+                          {p.nama}
+                        </h4>
+                        <p className="text-xs font-extrabold text-harga">
+                          {formatRupiah(p.harga)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        pilihProdukKedua(p);
+                      }}
+                      className="shrink-0 rounded-xl bg-utama/10 px-3 py-1.5 text-xs font-bold text-utama hover:bg-utama hover:text-white transition"
+                    >
+                      + Bandingkan
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer Dialog */}
+            <div className="border-t border-garis px-5 py-3 flex justify-end bg-permukaan/20">
+              <button
+                type="button"
+                onClick={() => setModalPilihBuka(false)}
+                className="rounded-xl border border-garis bg-permukaan px-4 py-1.5 text-xs font-semibold text-teks hover:border-utama"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Dialog Pembanding 2 Produk */}
       {modalBuka && item1 && item2 && (

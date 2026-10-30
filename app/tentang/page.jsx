@@ -1,12 +1,19 @@
 import Link from "next/link";
-import { toko } from "@/lib/toko";
+import { toko as defaultToko } from "@/lib/toko";
+import { ambilPengaturanAdmin } from "@/lib/pengaturanAdmin";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export const metadata = {
-  title: `Tentang Kami - ${toko.nama}`,
-  description: `Profil, jam operasional, dan lokasi ${toko.nama}. ${toko.tagline}`,
+  title: `Tentang Kami - ${defaultToko.nama}`,
+  description: `Profil, jam operasional, dan lokasi ${defaultToko.nama}. ${defaultToko.tagline}`,
 };
 
-export default function HalamanTentang() {
+export default async function HalamanTentang() {
+  const config = await ambilPengaturanAdmin();
+  const toko = config.tokoInfo || defaultToko;
+
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     `${toko.nama} ${toko.alamat}`
   )}`;

@@ -1,7 +1,7 @@
 import NavAdmin from "@/components/NavAdmin";
 import TabelProduk from "@/components/TabelProduk";
 import Tombol from "@/components/Tombol";
-import { buatClientServer } from "@/lib/supabase";
+import { buatClientServer, normalisasiDaftarProduk } from "@/lib/supabase";
 import { ambilPengaturanAdmin } from "@/lib/pengaturanAdmin";
 import { formatRupiah } from "@/lib/format";
 
@@ -16,7 +16,7 @@ export default async function HalamanAdmin() {
   const supabase = buatClientServer();
   const { data: rawProduk, error } = await supabase
     .from("produk")
-    .select("*")
+    .select("*, kategori_rel:kategori_id(id, nama, slug)")
     .order("created_at", { ascending: false });
 
   const pengaturan = await ambilPengaturanAdmin();
@@ -24,7 +24,7 @@ export default async function HalamanAdmin() {
   const urutanIds = pengaturan.urutanIds || [];
   const analitikKlik = pengaturan.analitikKlik || {};
 
-  let daftarProduk = rawProduk ? [...rawProduk] : [];
+  let daftarProduk = normalisasiDaftarProduk(rawProduk);
 
   // Terapkan kustomisasi urutan tampil (US-47)
   if (urutanIds.length > 0) {

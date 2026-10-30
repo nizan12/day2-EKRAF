@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buatClientServer } from "@/lib/supabase";
+import { buatClientServer, normalisasiDaftarProduk } from "@/lib/supabase";
 import { ambilPengaturanAdmin } from "@/lib/pengaturanAdmin";
 import { toko } from "@/lib/toko";
 
@@ -15,12 +15,13 @@ export async function POST(request) {
     const supabase = buatClientServer();
     const { data: rawProduk } = await supabase
       .from("produk")
-      .select("id, nama, harga, kategori, deskripsi, foto_url, image")
+      .select("*, kategori_rel:kategori_id(id, nama, slug)")
       .order("created_at", { ascending: false });
 
     const config = await ambilPengaturanAdmin();
     const nonaktifIds = config.nonaktifIds || [];
-    const produkAktif = (rawProduk || []).filter((p) => !nonaktifIds.includes(p.id));
+    const daftarNormal = normalisasiDaftarProduk(rawProduk || []);
+    const produkAktif = daftarNormal.filter((p) => !nonaktifIds.includes(p.id));
 
     const ringkasanMenu = produkAktif
       .map(

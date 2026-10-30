@@ -62,13 +62,18 @@ export default async function HalamanModerasiUlasan() {
                     </td>
                     <td className="px-6 py-4">
                       <span
-                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${
                           u.status === "disetujui"
-                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
-                            : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+                            ? "border-utama/30 bg-utama/10 text-utama"
+                            : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
                         }`}
                       >
-                        {u.status === "disetujui" ? "Tampil (Disetujui)" : "Tertunda"}
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            u.status === "disetujui" ? "bg-utama" : "bg-amber-500"
+                          }`}
+                        />
+                        <span>{u.status === "disetujui" ? "Disetujui" : "Menunggu"}</span>
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">

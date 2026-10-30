@@ -7,6 +7,7 @@ import { logoutAdmin } from "@/app/admin/actions";
 const NAV_ITEMS = [
   { href: "/admin", label: "Produk" },
   { href: "/admin/kategori", label: "Kategori" },
+  { href: "/admin/banner", label: "Banner Promo" },
   { href: "/admin/ulasan", label: "Moderasi Ulasan" },
   { href: "/admin/pengaturan", label: "Profil Toko" },
   { href: "/admin/pengguna", label: "Kelola Admin" },
@@ -41,7 +42,7 @@ export default function NavAdmin() {
       <form action={logoutAdmin} className="ml-auto">
         <button
           type="submit"
-          className="rounded-xl border border-garis px-3 py-2 text-teks-lembut transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+          className="rounded-xl border border-garis px-3 py-2 text-teks-lembut transition hover:border-red-600 hover:bg-red-600 hover:text-white cursor-pointer"
         >
           Keluar
         </button>

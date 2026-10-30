@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { formatRupiah, ambilFotoUtama } from "@/lib/format";
 import Tombol from "@/components/Tombol";
@@ -18,6 +18,18 @@ export default function TabelProduk({ daftarProduk, nonaktifIds = [] }) {
   const [modalImpor, setModalImpor] = useState(false);
   const [statusImpor, setStatusImpor] = useState(null);
   const [memproses, setMemproses] = useState(false);
+
+  // Kunci scroll halaman belakang saat modal impor terbuka
+  useEffect(() => {
+    if (modalImpor) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [modalImpor]);
 
   const ITEM_PER_PAGE = 8;
 
@@ -236,19 +248,19 @@ export default function TabelProduk({ daftarProduk, nonaktifIds = [] }) {
                         <input type="hidden" name="id" value={produk.id} />
                         <button
                           type="submit"
-                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition shadow-xs ${
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition cursor-pointer active:scale-95 shadow-2xs ${
                             isNonaktif
-                              ? "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950/40 dark:text-amber-400"
-                              : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400"
+                              ? "border-garis bg-permukaan text-teks-lembut hover:border-teks-lembut hover:text-teks"
+                              : "border-utama/30 bg-utama/10 text-utama hover:border-utama hover:bg-utama/20"
                           }`}
                           title="Klik untuk mengubah status tampil di katalog pengunjung"
                         >
                           <span
-                            className={`h-2 w-2 rounded-full ${
-                              isNonaktif ? "bg-amber-500" : "bg-emerald-500"
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              isNonaktif ? "bg-teks-lembut/60" : "bg-utama shadow-xs"
                             }`}
                           />
-                          <span>{isNonaktif ? "Nonaktif (Draft)" : "Aktif (Tampil)"}</span>
+                          <span>{isNonaktif ? "Nonaktif" : "Aktif (Tampil)"}</span>
                         </button>
                       </form>
                     </td>

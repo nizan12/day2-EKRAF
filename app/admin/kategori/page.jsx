@@ -8,14 +8,35 @@ export const metadata = {
   title: "Kelola Kategori - Admin",
 };
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function HalamanKelolaKategori() {
   const supabase = buatClientServer();
+
+  // 1. Ambil data kategori langsung dari tabel `kategori` Supabase
+  let listKategori = [];
+  try {
+    const { data: dbKategori } = await supabase
+      .from("kategori")
+      .select("*")
+      .order("id", { ascending: true });
+    if (dbKategori && dbKategori.length > 0) {
+      listKategori = dbKategori;
+    }
+  } catch {}
+
+  // Fallback ke pengaturan admin jika tabel belum termuat
+  if (listKategori.length === 0) {
+    const pengaturan = await ambilPengaturanAdmin();
+    listKategori = (pengaturan.kategoriList || []).map((nama, idx) => ({
+      id: idx + 1,
+      nama,
+    }));
+  }
+
+  // 2. Hitung jumlah produk per kategori dari tabel `produk`
   const { data: produk } = await supabase.from("produk").select("kategori");
-
-  const pengaturan = await ambilPengaturanAdmin();
-  const kategoriKustom = pengaturan.kategoriList || [];
-
-  // Hitung jumlah produk per kategori
   const hitungKategori = {};
   (produk || []).forEach((p) => {
     if (p.kategori) {
@@ -23,9 +44,7 @@ export default async function HalamanKelolaKategori() {
     }
   });
 
-  const semuaKategori = [
-    ...new Set([...Object.keys(hitungKategori), ...kategoriKustom]),
-  ].sort();
+  const semuaKategori = listKategori.map((k) => k.nama);
 
   return (
     <div className="flex flex-col gap-6 py-8">
@@ -89,17 +108,15 @@ export default async function HalamanKelolaKategori() {
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      {kategoriKustom.includes(kat) && (
-                        <form action={hapusKategoriAdmin} className="inline">
-                          <input type="hidden" name="nama" value={kat} />
-                          <button
-                            type="submit"
-                            className="text-xs text-red-600 hover:underline"
-                          >
-                            Hapus Kategori
-                          </button>
-                        </form>
-                      )}
+                      <form action={hapusKategoriAdmin} className="inline">
+                        <input type="hidden" name="nama" value={kat} />
+                        <button
+                          type="submit"
+                          className="text-xs text-red-600 hover:underline"
+                        >
+                          Hapus Kategori
+                        </button>
+                      </form>
                     </td>
                   </tr>
                 );

@@ -175,17 +175,81 @@ export async function tambahProduk(prevState, formData) {
   const imageFinal = daftarUrl.length > 0 ? daftarUrl.join(", ") : "/images/placeholder.svg";
 
   const supabaseServer = buatClientServer();
-  const { error } = await supabaseServer.from("produk").insert({
+
+  // Cari atau buat kategori_id secara relasional
+  let kategori_id = null;
+  if (kategori) {
+    const { data: katData } = await supabaseServer
+      .from("kategori")
+      .select("id")
+      .ilike("nama", kategori)
+      .limit(1)
+      .maybeSingle();
+
+    if (katData?.id) {
+      kategori_id = katData.id;
+    } else {
+      const slug = kategori
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+      const { data: newKat } = await supabaseServer
+        .from("kategori")
+        .insert({ nama: kategori, slug, urutan: 10 })
+        .select("id")
+        .maybeSingle();
+      if (newKat?.id) kategori_id = newKat.id;
+    }
+  }
+
+  const rawCoret = formData.get("harga_coret");
+  const harga_coret = rawCoret && Number(rawCoret) > harga ? Number(rawCoret) : null;
+
+  const rawStok = formData.get("stok");
+  const stok = rawStok !== null && rawStok !== "" ? parseInt(rawStok, 10) : 10;
+
+  const insertData = {
     nama,
     harga,
-    kategori,
+    kategori_id,
+    harga_coret,
+    stok: isNaN(stok) ? 10 : stok,
     foto_url: imageFinal,
     image: imageFinal,
     deskripsi,
-  });
+  };
+
+  const { data: newProd, error } = await supabaseServer
+    .from("produk")
+    .insert(insertData)
+    .select("id")
+    .single();
 
   if (error) {
     return { error: "Gagal menyimpan produk: " + error.message };
+  }
+
+  // Simpan varian produk ke tabel varian jika ada
+  const rawVarian = formData.get("varian_json");
+  if (newProd?.id && rawVarian) {
+    try {
+      const varianItems = JSON.parse(rawVarian);
+      if (Array.isArray(varianItems) && varianItems.length > 0) {
+        const rowsVarian = varianItems
+          .filter((v) => v.nama && v.nama.trim())
+          .map((v) => ({
+            produk_id: newProd.id,
+            nama: v.nama.trim(),
+            harga_tambahan: parseInt(v.harga_tambahan, 10) || 0,
+            stok: v.stok !== null && v.stok !== "" && !isNaN(v.stok) ? parseInt(v.stok, 10) : null,
+          }));
+        if (rowsVarian.length > 0) {
+          await supabaseServer.from("varian").insert(rowsVarian);
+        }
+      }
+    } catch (err) {
+      console.error("Gagal menyimpan varian:", err);
+    }
   }
 
   await catatLogAktivitas("Tambah Produk", `Menambahkan "${nama}" (Rp ${harga.toLocaleString("id-ID")})`);
@@ -232,9 +296,43 @@ export async function ubahProduk(prevState, formData) {
   const dataUpdate = {
     nama,
     harga,
-    kategori,
     deskripsi,
   };
+
+  const supabaseServer = buatClientServer();
+
+  // Cari atau buat kategori_id secara relasional
+  if (kategori !== null && kategori !== undefined) {
+    const { data: katData } = await supabaseServer
+      .from("kategori")
+      .select("id")
+      .ilike("nama", kategori)
+      .limit(1)
+      .maybeSingle();
+
+    if (katData?.id) {
+      dataUpdate.kategori_id = katData.id;
+    } else if (kategori) {
+      const slug = kategori
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+      const { data: newKat } = await supabaseServer
+        .from("kategori")
+        .insert({ nama: kategori, slug, urutan: 10 })
+        .select("id")
+        .maybeSingle();
+      if (newKat?.id) dataUpdate.kategori_id = newKat.id;
+    }
+  }
+
+  const rawCoret = formData.get("harga_coret");
+  dataUpdate.harga_coret = rawCoret && Number(rawCoret) > harga ? Number(rawCoret) : null;
+
+  const rawStok = formData.get("stok");
+  if (rawStok !== null && rawStok !== "") {
+    dataUpdate.stok = isNaN(parseInt(rawStok, 10)) ? 10 : parseInt(rawStok, 10);
+  }
 
   const inputUrl = formData.get("foto_url");
   let daftarUrl = [];
@@ -281,7 +379,6 @@ export async function ubahProduk(prevState, formData) {
     dataUpdate.image = finalFoto;
   }
 
-  const supabaseServer = buatClientServer();
   const { data, error } = await supabaseServer
     .from("produk")
     .update(dataUpdate)
@@ -294,6 +391,34 @@ export async function ubahProduk(prevState, formData) {
 
   if (!data || data.length === 0) {
     return { error: "Gagal memperbarui data: produk ID #" + id + " tidak ditemukan." };
+  }
+
+  // Sinkronisasi varian produk ke tabel varian jika ada
+  const rawVarian = formData.get("varian_json");
+  if (rawVarian !== null) {
+    try {
+      const varianItems = JSON.parse(rawVarian);
+      if (Array.isArray(varianItems)) {
+        // Hapus varian lama produk ini
+        await supabaseServer.from("varian").delete().eq("produk_id", Number(id));
+
+        // Masukkan varian baru yang valid
+        const rowsVarian = varianItems
+          .filter((v) => v.nama && v.nama.trim())
+          .map((v) => ({
+            produk_id: Number(id),
+            nama: v.nama.trim(),
+            harga_tambahan: parseInt(v.harga_tambahan, 10) || 0,
+            stok: v.stok !== null && v.stok !== "" && !isNaN(v.stok) ? parseInt(v.stok, 10) : null,
+          }));
+
+        if (rowsVarian.length > 0) {
+          await supabaseServer.from("varian").insert(rowsVarian);
+        }
+      }
+    } catch (err) {
+      console.error("Gagal memperbarui varian:", err);
+    }
   }
 
   await catatLogAktivitas("Ubah Produk", `Memperbarui produk ID #${id} (${nama})`);
@@ -374,7 +499,7 @@ export async function unggahFotoLangsung(formData) {
   return { sukses: true, url: publicUrl };
 }
 
-export async function buatDeskripsiAI({ nama, kategori }) {
+export async function buatDeskripsiAI(arg1, arg2) {
   const supabase = await buatClientSesi();
 
   const {
@@ -382,6 +507,16 @@ export async function buatDeskripsiAI({ nama, kategori }) {
   } = await supabase.auth.getUser();
   if (!user) {
     return { error: "Sesi login sudah berakhir. Silakan login kembali." };
+  }
+
+  let nama = "";
+  let kategori = "";
+  if (typeof arg1 === "object" && arg1 !== null) {
+    nama = arg1.nama || "";
+    kategori = arg1.kategori || "";
+  } else if (typeof arg1 === "string") {
+    nama = arg1;
+    kategori = typeof arg2 === "string" ? arg2 : "";
   }
 
   if (!nama || !nama.trim()) {
@@ -408,6 +543,7 @@ Aturan Penulisan:
     "gemini-flash-latest",
     "gemini-3.8-flash",
     "gemini-3.7-flash",
+    "gemini-flash-lite-latest",
   ];
   let lastError = null;
 
@@ -503,7 +639,18 @@ export async function simpanUrutanProduk(urutanIds) {
   return { sukses: true };
 }
 
-export async function tambahKategoriAdmin(prevState, formData) {
+export async function tambahKategoriAdmin(arg1, arg2) {
+  const formData =
+    arg2 && typeof arg2.get === "function"
+      ? arg2
+      : arg1 && typeof arg1.get === "function"
+      ? arg1
+      : null;
+
+  if (!formData) {
+    return { error: "Form data tidak valid." };
+  }
+
   const supabase = await buatClientSesi();
   const {
     data: { user },
@@ -522,6 +669,21 @@ export async function tambahKategoriAdmin(prevState, formData) {
   if (!kategoriList.includes(namaKategori)) {
     kategoriList.push(namaKategori);
     await simpanPengaturanAdmin({ ...pengaturan, kategoriList });
+
+    // Simpan juga ke tabel kategori Supabase
+    try {
+      const supabaseServer = buatClientServer();
+      const slug = namaKategori
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+      await supabaseServer.from("kategori").insert({
+        nama: namaKategori,
+        slug,
+        urutan: kategoriList.length,
+      });
+    } catch {}
+
     await catatLogAktivitas("Tambah Kategori", `Menambahkan kategori "${namaKategori}"`);
   }
 
@@ -545,13 +707,31 @@ export async function hapusKategoriAdmin(formData) {
   const pengaturan = await ambilPengaturanAdmin();
   const kategoriList = (pengaturan.kategoriList || []).filter((k) => k !== namaKategori);
   await simpanPengaturanAdmin({ ...pengaturan, kategoriList });
+
+  // Hapus juga dari tabel kategori Supabase
+  try {
+    const supabaseServer = buatClientServer();
+    await supabaseServer.from("kategori").delete().eq("nama", namaKategori);
+  } catch {}
+
   await catatLogAktivitas("Hapus Kategori", `Menghapus kategori "${namaKategori}"`);
 
   revalidatePath("/admin");
   revalidatePath("/admin/kategori");
 }
 
-export async function imporProdukCSV(prevState, formData) {
+export async function imporProdukCSV(arg1, arg2) {
+  const formData =
+    arg2 && typeof arg2.get === "function"
+      ? arg2
+      : arg1 && typeof arg1.get === "function"
+      ? arg1
+      : null;
+
+  if (!formData) {
+    return { error: "Form data tidak valid." };
+  }
+
   const supabase = await buatClientSesi();
   const {
     data: { user },
@@ -752,6 +932,11 @@ export async function kosongkanLogAktivitas() {
     redirect("/admin/login");
   }
 
+  try {
+    const supabaseServer = buatClientServer();
+    await supabaseServer.from("log_aktivitas").delete().neq("id", 0);
+  } catch {}
+
   await simpanPengaturanAdmin({ auditLog: [] });
   revalidatePath("/admin/aktivitas");
 }
@@ -826,4 +1011,112 @@ export async function hapusUlasanAction(formData) {
   await catatLogAktivitas("Hapus Ulasan", `Menghapus ulasan ID #${id}`);
   revalidatePath("/admin/ulasan");
 }
+
+/**
+ * US-42: Manajemen Banner Promosi di Admin
+ */
+export async function tambahBannerAdmin(arg1, arg2) {
+  const formData =
+    arg2 && typeof arg2.get === "function"
+      ? arg2
+      : arg1 && typeof arg1.get === "function"
+      ? arg1
+      : null;
+
+  if (!formData) return { error: "Form data tidak valid." };
+
+  const supabaseSesi = await buatClientSesi();
+  const {
+    data: { user },
+  } = await supabaseSesi.auth.getUser();
+  if (!user) {
+    return { error: "Sesi login telah berakhir." };
+  }
+
+  const judul = formData.get("judul")?.trim();
+  const subjudul = formData.get("subjudul")?.trim() || null;
+  const deskripsi = formData.get("deskripsi")?.trim() || null;
+  const badge = formData.get("badge")?.trim() || "PROMO SPESIAL";
+  const tombol_teks = formData.get("tombol_teks")?.trim() || "Pesan via WhatsApp";
+  const link_url = formData.get("link_url")?.trim() || "/";
+  const tipe = formData.get("tipe")?.trim() || "coffee";
+  const bg_gradient = formData.get("bg_gradient")?.trim() || "from-emerald-950 via-utama-gelap to-utama";
+  const is_external = formData.get("is_external") === "true" || link_url.startsWith("http");
+
+  if (!judul || judul.length < 3) {
+    return { error: "Judul banner wajib diisi minimal 3 karakter." };
+  }
+
+  const supabaseServer = buatClientServer();
+  const { error } = await supabaseServer.from("banner").insert({
+    judul,
+    subjudul,
+    deskripsi,
+    badge,
+    tombol_teks,
+    link_url,
+    tipe,
+    bg_gradient,
+    is_external,
+    aktif: true,
+    urutan: 1,
+  });
+
+  if (error) {
+    return { error: "Gagal menyimpan banner: " + error.message };
+  }
+
+  await catatLogAktivitas("Tambah Banner", `Menambahkan banner promo "${judul}"`);
+  revalidatePath("/");
+  revalidatePath("/admin/banner");
+  return { sukses: "Banner promo baru berhasil ditambahkan!" };
+}
+
+export async function toggleStatusBannerAdmin(formData) {
+  const supabaseSesi = await buatClientSesi();
+  const {
+    data: { user },
+  } = await supabaseSesi.auth.getUser();
+  if (!user) {
+    redirect("/admin/login");
+  }
+
+  const id = formData.get("id");
+  const aktifSaatIni = formData.get("aktif") === "true";
+  if (!id) return;
+
+  const supabaseServer = buatClientServer();
+  await supabaseServer
+    .from("banner")
+    .update({ aktif: !aktifSaatIni })
+    .eq("id", Number(id));
+
+  await catatLogAktivitas(
+    "Ubah Status Banner",
+    `Banner ID #${id} diubah menjadi ${!aktifSaatIni ? "Aktif" : "Nonaktif"}`
+  );
+  revalidatePath("/");
+  revalidatePath("/admin/banner");
+}
+
+export async function hapusBannerAdmin(formData) {
+  const supabaseSesi = await buatClientSesi();
+  const {
+    data: { user },
+  } = await supabaseSesi.auth.getUser();
+  if (!user) {
+    redirect("/admin/login");
+  }
+
+  const id = formData.get("id");
+  if (!id) return;
+
+  const supabaseServer = buatClientServer();
+  await supabaseServer.from("banner").delete().eq("id", Number(id));
+
+  await catatLogAktivitas("Hapus Banner", `Menghapus banner ID #${id}`);
+  revalidatePath("/");
+  revalidatePath("/admin/banner");
+}
+
 

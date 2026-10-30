@@ -4,7 +4,7 @@ import Paginasi from "@/components/Paginasi";
 import TerakhirDilihat from "@/components/TerakhirDilihat";
 import BannerPromo from "@/components/BannerPromo";
 import { toko } from "@/lib/toko";
-import { buatClientServer } from "@/lib/supabase";
+import { buatClientServer, normalisasiDaftarProduk } from "@/lib/supabase";
 import { ambilPengaturanAdmin } from "@/lib/pengaturanAdmin";
 
 const PRODUK_PER_HALAMAN = 6;
@@ -19,17 +19,17 @@ export default async function HalamanKatalog({ searchParams }) {
   try {
     const supabase = buatClientServer();
 
-    // Ambil semua produk untuk daftar kategori
+    // Ambil semua produk beserta relasi kategori_id
     const { data, error: sbError } = await supabase
       .from("produk")
-      .select("*")
+      .select("*, kategori_rel:kategori_id(id, nama, slug)")
       .order("created_at", { ascending: false });
 
     if (sbError) {
       throw sbError;
     }
 
-    semuaProduk = data ?? [];
+    semuaProduk = normalisasiDaftarProduk(data ?? []);
 
     const pengaturan = await ambilPengaturanAdmin();
     const nonaktifIds = pengaturan.nonaktifIds || [];
@@ -77,6 +77,20 @@ export default async function HalamanKatalog({ searchParams }) {
     error = err.message || "Terjadi kesalahan saat mengambil data produk.";
   }
 
+  // Ambil banner promo dari tabel `banner` Supabase jika ada (US-42)
+  let daftarBanner = [];
+  try {
+    const supabase = buatClientServer();
+    const { data: bannerData } = await supabase
+      .from("banner")
+      .select("*")
+      .eq("aktif", true)
+      .order("urutan", { ascending: true });
+    if (bannerData && bannerData.length > 0) {
+      daftarBanner = bannerData;
+    }
+  } catch {}
+
   // Hitung paginasi (US-16)
   const totalProduk = daftarProduk.length;
   const totalHalaman = Math.ceil(totalProduk / PRODUK_PER_HALAMAN) || 1;
@@ -101,7 +115,7 @@ export default async function HalamanKatalog({ searchParams }) {
       </section>
 
       {/* Banner Promo Interaktif (US-42) */}
-      <BannerPromo />
+      <BannerPromo slides={daftarBanner} />
 
       <section aria-labelledby="judul-produk" className="flex flex-col gap-5">
         <h2 id="judul-produk" className="text-xl font-bold">

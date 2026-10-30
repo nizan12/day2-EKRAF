@@ -1,4 +1,4 @@
-import { buatClientSesi, buatClientServer } from "@/lib/supabase";
+import { buatClientSesi, buatClientServer, normalisasiDaftarProduk } from "@/lib/supabase";
 
 export async function GET() {
   const sesi = await buatClientSesi();
@@ -11,12 +11,14 @@ export async function GET() {
   }
 
   const supabase = buatClientServer();
-  const { data: daftarProduk, error } = await supabase
+  const { data: rawProduk, error } = await supabase
     .from("produk")
-    .select("*")
+    .select("*, kategori_rel:kategori_id(id, nama, slug)")
     .order("id", { ascending: true });
 
-  if (error || !daftarProduk) {
+  const daftarProduk = normalisasiDaftarProduk(rawProduk);
+
+  if (error || !daftarProduk || daftarProduk.length === 0) {
     return new Response("Gagal mengambil data produk", { status: 500 });
   }
 

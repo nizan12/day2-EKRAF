@@ -5,22 +5,33 @@ import { toko } from "@/lib/toko";
 import { formatRupiah } from "@/lib/format";
 import TombolKeranjang from "@/components/TombolKeranjang";
 
-export default function TombolWhatsApp({ produk }) {
+export default function TombolWhatsApp({ produk, varianList = [] }) {
   const [jumlah, setJumlah] = useState(1);
-  const [ukuran, setUkuran] = useState("Regular"); // Regular atau Large (US-48)
+
+  const varianTersedia = Array.isArray(varianList) && varianList.length > 0
+    ? varianList
+    : [
+        { id: "reg", nama: "Regular", harga_tambahan: 0 },
+        { id: "lrg", nama: "Large", harga_tambahan: 4000 },
+      ];
+
+  const [varianAktif, setVarianAktif] = useState(varianTersedia[0]);
 
   const isHabis =
     produk.stok === 0 ||
     produk.status_stok === "habis" ||
     produk.stok_habis === true;
 
-  const tambahanHarga = ukuran === "Large" ? 4000 : 0;
+  const tambahanHarga = Number(varianAktif?.harga_tambahan) || 0;
   const hargaSatuan = (Number(produk.harga) || 0) + tambahanHarga;
   const total = hargaSatuan * jumlah;
 
-  const namaVarian = ukuran === "Large" ? `${produk.nama} (Large)` : produk.nama;
+  const namaVarian =
+    varianAktif?.nama && varianAktif.nama !== "Regular"
+      ? `${produk.nama} (${varianAktif.nama})`
+      : produk.nama;
 
-  const pesan = `Halo, saya ingin memesan:\n\n*${namaVarian}*\nUkuran: ${ukuran}\nHarga: ${formatRupiah(hargaSatuan)}\nJumlah: ${jumlah}\nTotal: ${formatRupiah(total)}\n\nTerima kasih!`;
+  const pesan = `Halo, saya ingin memesan:\n\n*${namaVarian}*\nVarian: ${varianAktif?.nama || "Regular"}\nHarga: ${formatRupiah(hargaSatuan)}\nJumlah: ${jumlah}\nTotal: ${formatRupiah(total)}\n\nTerima kasih!`;
   const url = `https://wa.me/${toko.nomorWhatsApp}?text=${encodeURIComponent(pesan)}`;
 
   const produkUntukKeranjang = {
@@ -51,34 +62,37 @@ export default function TombolWhatsApp({ produk }) {
 
   return (
     <div className="flex flex-col gap-3.5">
-      {/* Pemilih Varian Ukuran (US-48) */}
+      {/* Pemilih Varian Produk (US-12 & US-48) */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-semibold text-teks">Pilihan Ukuran:</span>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setUkuran("Regular")}
-            className={`flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-semibold transition ${
-              ukuran === "Regular"
-                ? "border-utama bg-utama/10 text-utama font-bold"
-                : "border-garis bg-permukaan text-teks-lembut hover:border-utama"
-            }`}
-          >
-            <span>Regular</span>
-            <span>Standar</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setUkuran("Large")}
-            className={`flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-semibold transition ${
-              ukuran === "Large"
-                ? "border-utama bg-utama/10 text-utama font-bold"
-                : "border-garis bg-permukaan text-teks-lembut hover:border-utama"
-            }`}
-          >
-            <span>Large</span>
-            <span className="font-bold text-utama">+Rp 4.000</span>
-          </button>
+        <span className="text-xs font-semibold text-teks">Pilihan Varian / Ukuran:</span>
+        <div className={`grid gap-2 ${varianTersedia.length > 2 ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"}`}>
+          {varianTersedia.map((v) => {
+            const isSelected = varianAktif?.nama === v.nama;
+            const extra = Number(v.harga_tambahan) || 0;
+            const isVarianHabis = v.stok !== null && v.stok !== undefined && Number(v.stok) <= 0;
+            return (
+              <button
+                key={v.id || v.nama}
+                type="button"
+                disabled={isVarianHabis}
+                onClick={() => setVarianAktif(v)}
+                className={`flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                  isVarianHabis
+                    ? "opacity-50 cursor-not-allowed bg-latar border-dashed border-garis"
+                    : isSelected
+                    ? "border-utama bg-utama/10 text-utama font-bold"
+                    : "border-garis bg-permukaan text-teks-lembut hover:border-utama"
+                }`}
+              >
+                <span>
+                  {v.nama} {isVarianHabis && <span className="text-[10px] text-red-500 font-bold">(Habis)</span>}
+                </span>
+                <span className={extra > 0 ? "font-bold text-utama" : "text-teks-lembut"}>
+                  {extra > 0 ? `+${formatRupiah(extra)}` : "Standar"}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
