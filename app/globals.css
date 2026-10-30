@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
   Token desain. Ganti nilai di sini untuk menyesuaikan dengan usahamu.
   Penjelasan setiap token ada di DESIGN.md.

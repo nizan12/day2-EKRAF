@@ -540,25 +540,29 @@ Aturan Penulisan:
 3. JANGAN PERNAH MENGGUNAKAN EMOJI APAPUN dalam jawabanmu.`;
 
   const models = [
-    "gemini-flash-latest",
-    "gemini-3.8-flash",
-    "gemini-3.7-flash",
     "gemini-flash-lite-latest",
+    "gemini-3.5-flash-lite",
+    "gemini-flash-latest",
   ];
   let lastError = null;
 
   for (const model of models) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+
     try {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
           method: "POST",
+          signal: controller.signal,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ text: prompt }] }],
           }),
         }
       );
+      clearTimeout(timer);
 
       const json = await res.json();
       const hasil = json?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -574,7 +578,8 @@ Aturan Penulisan:
         lastError = json.error.message;
       }
     } catch (e) {
-      lastError = e.message;
+      clearTimeout(timer);
+      lastError = e.name === "AbortError" ? `Model ${model} timeout` : e.message;
     }
   }
 
@@ -583,6 +588,58 @@ Aturan Penulisan:
       "Gagal menghasilkan deskripsi AI. " +
       (lastError || "Pastikan GEMINI_API_KEY valid."),
   };
+}
+
+export async function tambahStokCepat(formData) {
+  const supabase = await buatClientSesi();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "Sesi login sudah berakhir. Silakan login kembali." };
+  }
+
+  const id = formData.get("id");
+  const jumlah = parseInt(formData.get("jumlah"), 10);
+  const mode = formData.get("mode") || "tambah"; // "tambah" (+N) atau "setel" (=N)
+
+  if (!id || isNaN(jumlah)) {
+    return { error: "Jumlah stok tidak valid." };
+  }
+
+  const supabaseServer = await buatClientServer();
+  const { data: produk, error: fetchErr } = await supabaseServer
+    .from("produk")
+    .select("id, nama, stok")
+    .eq("id", id)
+    .single();
+
+  if (fetchErr || !produk) {
+    return { error: "Produk tidak ditemukan." };
+  }
+
+  const stokLama = produk.stok !== null && produk.stok !== undefined ? produk.stok : 0;
+  const stokBaru = mode === "tambah" ? Math.max(0, stokLama + jumlah) : Math.max(0, jumlah);
+
+  const { error: updateErr } = await supabaseServer
+    .from("produk")
+    .update({ stok: stokBaru })
+    .eq("id", id);
+
+  if (updateErr) {
+    return { error: "Gagal memperbarui stok: " + updateErr.message };
+  }
+
+  await catatLogAktivitas(
+    "Restock Produk",
+    `Stok "${produk.nama}" ${mode === "tambah" ? `ditambah ${jumlah}` : `disetel ke ${jumlah}`} (Total sekarang: ${stokBaru}).`
+  );
+
+  revalidatePath("/admin");
+  revalidatePath(`/produk/${id}`);
+  revalidatePath("/");
+
+  return { sukses: true, stokBaru, nama: produk.nama };
 }
 
 export async function toggleStatusProduk(formData) {
@@ -702,7 +759,8 @@ export async function hapusKategoriAdmin(formData) {
   }
 
   const namaKategori = formData.get("nama")?.trim();
-  if (!namaKategori) return;
+  const idKategori = formData.get("id");
+  if (!namaKategori && !idKategori) return;
 
   const pengaturan = await ambilPengaturanAdmin();
   const kategoriList = (pengaturan.kategoriList || []).filter((k) => k !== namaKategori);
@@ -711,7 +769,11 @@ export async function hapusKategoriAdmin(formData) {
   // Hapus juga dari tabel kategori Supabase
   try {
     const supabaseServer = buatClientServer();
-    await supabaseServer.from("kategori").delete().eq("nama", namaKategori);
+    if (idKategori) {
+      await supabaseServer.from("kategori").delete().eq("id", idKategori);
+    } else if (namaKategori) {
+      await supabaseServer.from("kategori").delete().eq("nama", namaKategori);
+    }
   } catch {}
 
   await catatLogAktivitas("Hapus Kategori", `Menghapus kategori "${namaKategori}"`);

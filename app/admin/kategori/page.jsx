@@ -36,15 +36,27 @@ export default async function HalamanKelolaKategori() {
   }
 
   // 2. Hitung jumlah produk per kategori dari tabel `produk`
-  const { data: produk } = await supabase.from("produk").select("kategori");
-  const hitungKategori = {};
+  // Di Supabase, relasi produk terhubung via `kategori_id` ke tabel `kategori`
+  let produk = [];
+  try {
+    const { data: dbProduk } = await supabase
+      .from("produk")
+      .select("id, kategori_id, kategori_rel:kategori_id(id, nama)");
+    if (dbProduk) produk = dbProduk;
+  } catch {}
+
+  const hitungKategoriById = {};
+  const hitungKategoriByNama = {};
+
   (produk || []).forEach((p) => {
-    if (p.kategori) {
-      hitungKategori[p.kategori] = (hitungKategori[p.kategori] || 0) + 1;
+    if (p.kategori_id) {
+      hitungKategoriById[p.kategori_id] = (hitungKategoriById[p.kategori_id] || 0) + 1;
+    }
+    const relNama = p.kategori_rel?.nama;
+    if (relNama) {
+      hitungKategoriByNama[relNama] = (hitungKategoriByNama[relNama] || 0) + 1;
     }
   });
-
-  const semuaKategori = listKategori.map((k) => k.nama);
 
   return (
     <div className="flex flex-col gap-6 py-8">
@@ -90,29 +102,39 @@ export default async function HalamanKelolaKategori() {
             </tr>
           </thead>
           <tbody>
-            {semuaKategori.length === 0 ? (
+            {listKategori.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-5 py-8 text-center text-teks-lembut">
                   Belum ada kategori yang terdaftar.
                 </td>
               </tr>
             ) : (
-              semuaKategori.map((kat) => {
-                const totalItem = hitungKategori[kat] || 0;
+              listKategori.map((kat) => {
+                const totalItem =
+                  (kat.id ? hitungKategoriById[kat.id] : undefined) ??
+                  hitungKategoriByNama[kat.nama] ??
+                  0;
                 return (
-                  <tr key={kat} className="border-t border-garis">
-                    <td className="px-5 py-3.5 font-bold text-teks">{kat}</td>
+                  <tr key={kat.id || kat.nama} className="border-t border-garis">
+                    <td className="px-5 py-3.5 font-bold text-teks">{kat.nama}</td>
                     <td className="px-5 py-3.5">
-                      <span className="rounded-full bg-utama/10 px-2.5 py-0.5 text-xs font-semibold text-utama">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          totalItem > 0
+                            ? "bg-utama/10 text-utama"
+                            : "bg-permukaan text-teks-lembut"
+                        }`}
+                      >
                         {totalItem} produk
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <form action={hapusKategoriAdmin} className="inline">
-                        <input type="hidden" name="nama" value={kat} />
+                        <input type="hidden" name="nama" value={kat.nama} />
+                        <input type="hidden" name="id" value={kat.id || ""} />
                         <button
                           type="submit"
-                          className="text-xs text-red-600 hover:underline"
+                          className="text-xs text-red-600 hover:underline cursor-pointer"
                         >
                           Hapus Kategori
                         </button>

@@ -338,31 +338,45 @@ export default function FormProduk({
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Input
-              label="Harga Jual (Rp)"
-              name="harga"
-              type="number"
-              min="100"
-              value={harga}
-              onChange={(e) => {
-                const h = e.target.value;
-                setHarga(h);
-                if (diskonPersen && h) {
-                  setHargaCoret(Math.round(Number(h) / (1 - Number(diskonPersen) / 100)));
-                }
-              }}
-              placeholder="Contoh: 25000"
-              required
-            />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-teks flex items-center justify-between h-5">
+                <span>Harga Jual (Rp)</span>
+              </label>
+              <input
+                type="number"
+                name="harga"
+                min="100"
+                value={harga}
+                onChange={(e) => {
+                  const h = e.target.value;
+                  setHarga(h);
+                  if (diskonPersen && h) {
+                    setHargaCoret(Math.round(Number(h) / (1 - Number(diskonPersen) / 100)));
+                  }
+                }}
+                placeholder="Contoh: 25000"
+                required
+                className="w-full h-11 rounded-xl border border-garis bg-latar px-3.5 text-sm text-teks focus:border-utama focus:outline-none"
+              />
+              <div className="text-[11px] text-teks-lembut min-h-[16px] truncate">
+                {harga && Number(harga) > 0 ? (
+                  <span>Harga tayang: <strong className="text-teks font-semibold">Rp {Number(harga).toLocaleString("id-ID")}</strong></span>
+                ) : (
+                  <span>Nominal harga jual</span>
+                )}
+              </div>
+            </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-teks flex items-center justify-between">
+              <label className="text-sm font-semibold text-teks flex items-center justify-between h-5">
                 <span>Diskon Promo (%)</span>
                 {diskonPersen && Number(diskonPersen) > 0 ? (
-                  <span className="text-[10px] text-emerald-600 font-bold">Aktif</span>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-500/10 border border-emerald-500/20 font-bold px-1.5 py-0.5 rounded-full">
+                    Aktif
+                  </span>
                 ) : null}
               </label>
-              <div className="flex items-center gap-2">
+              <div className="relative flex items-center">
                 <input
                   type="number"
                   name="diskon_persen"
@@ -379,24 +393,30 @@ export default function FormProduk({
                       setHargaCoret("");
                     }
                   }}
-                  className="w-20 rounded-xl border border-garis bg-latar p-2.5 text-sm text-teks focus:border-utama focus:outline-none"
+                  className="w-full h-11 rounded-xl border border-garis bg-latar pl-3.5 pr-8 text-sm text-teks focus:border-utama focus:outline-none"
                 />
-                <span className="text-sm font-bold text-teks">%</span>
-                {hargaCoret && Number(hargaCoret) > Number(harga) && (
-                  <span className="text-[11px] text-teks-lembut truncate" title={`Harga sebelum diskon: Rp ${Number(hargaCoret).toLocaleString("id-ID")}`}>
-                    (<span className="line-through font-semibold text-red-500">Rp {Number(hargaCoret).toLocaleString("id-ID")}</span>)
+                <span className="pointer-events-none absolute right-3 text-xs font-bold text-teks-lembut">%</span>
+              </div>
+              <div className="text-[11px] min-h-[16px] flex items-center gap-1.5">
+                {hargaCoret && Number(hargaCoret) > Number(harga) ? (
+                  <span className="text-teks-lembut">
+                    Coret: <span className="line-through font-semibold text-red-500">Rp {Number(hargaCoret).toLocaleString("id-ID")}</span>
                   </span>
+                ) : (
+                  <span className="text-teks-lembut/60">Isi 0 jika tanpa promo</span>
                 )}
               </div>
               <input type="hidden" name="harga_coret" value={hargaCoret || ""} />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-teks flex items-center justify-between">
+              <label className="text-sm font-semibold text-teks flex items-center justify-between h-5">
                 <span>Jumlah Stok</span>
                 <span
-                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                    Number(stok) <= 0 ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                    Number(stok) <= 0
+                      ? "bg-red-500/10 text-red-600 border-red-500/20"
+                      : "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
                   }`}
                 >
                   {Number(stok) <= 0 ? "Habis" : "Ready"}
@@ -409,9 +429,30 @@ export default function FormProduk({
                 value={stok}
                 onChange={(e) => setStok(e.target.value)}
                 placeholder="10"
-                className="w-full rounded-xl border border-garis bg-latar p-2.5 text-sm text-teks focus:border-utama focus:outline-none"
+                className="w-full h-11 rounded-xl border border-garis bg-latar px-3.5 text-sm text-teks focus:border-utama focus:outline-none"
                 required
               />
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] text-teks-lembut font-semibold mr-0.5">Tambah cepat:</span>
+                {[5, 10, 20, 50].map((tambah) => (
+                  <button
+                    key={tambah}
+                    type="button"
+                    onClick={() => setStok((prev) => Math.max(0, (Number(prev) || 0) + tambah))}
+                    className="rounded-lg border border-garis bg-permukaan px-2 py-0.5 text-[10px] font-bold text-teks hover:border-utama hover:text-utama hover:bg-utama/10 transition active:scale-95 cursor-pointer"
+                    title={`Tambah ${tambah} ke stok saat ini`}
+                  >
+                    +{tambah}
+                  </button>
+                ))}
+              </div>
+              <div className="text-[11px] text-teks-lembut min-h-[16px]">
+                {Number(stok) > 0 ? (
+                  <span>{stok} porsi / item siap saji</span>
+                ) : (
+                  <span className="text-red-500 font-medium">Stok habis</span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -591,14 +632,20 @@ export default function FormProduk({
           </div>
 
           {pesanAI?.error && (
-            <p className="rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 p-2.5 text-xs text-bahaya font-medium">
-              {pesanAI.error}
-            </p>
+            <div className="flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/25 p-3 text-xs text-red-600 dark:text-red-400 font-medium animate-in fade-in">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0 text-red-500">
+                <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
+              </svg>
+              <span>{pesanAI.error}</span>
+            </div>
           )}
           {pesanAI?.sukses && (
-            <p className="rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 p-2.5 text-xs text-utama font-medium">
-              {pesanAI.sukses}
-            </p>
+            <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-xs text-emerald-700 dark:text-emerald-300 font-medium animate-in fade-in">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400">
+                <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
+              </svg>
+              <span>{pesanAI.sukses}</span>
+            </div>
           )}
         </div>
       </div>
@@ -856,9 +903,12 @@ export default function FormProduk({
         {/* KARTU 7: PANEL AKSI SUBMIT / SIMPAN */}
         <div className="rounded-3xl border border-garis bg-latar p-5 shadow-sm flex flex-col gap-3">
           {state?.error && (
-            <p className="rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 p-3 text-xs font-semibold text-red-700 dark:text-red-400">
-              {state.error}
-            </p>
+            <div className="flex items-start gap-2 rounded-xl bg-red-500/10 border border-red-500/25 p-3 text-xs font-semibold text-red-600 dark:text-red-400 animate-in fade-in">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0 mt-0.5 text-red-500">
+                <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
+              </svg>
+              <span>{state.error}</span>
+            </div>
           )}
 
           <div className="flex flex-col gap-2.5">
